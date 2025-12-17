@@ -1,8 +1,8 @@
-# Krono
+# Kron0
 
-**Krono** is a modern, neo-glassmorphism inspired productivity companion designed for students. It combines a powerful focus timer, a smart weekly schedule managed via Drag & Drop or simple clicks, and detailed productivity insights—all in a beautifully animated interface.
+**Kron0** is a modern, neo-glassmorphism inspired productivity companion designed for students. It combines a powerful focus timer, a smart weekly schedule managed via Drag & Drop or simple clicks, and detailed productivity insights—all in a beautifully animated interface.
 
-![Krono Dashboard Showcase](./public/icon.png)
+![Kron0 Dashboard Showcase](./public/icon.png)
 
 ## Features
 
