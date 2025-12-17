@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { FocusSession } from '../types';
 import { db } from '../lib/firebase';
 import { collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
@@ -25,6 +25,7 @@ interface FocusContextType {
     toggleTimer: () => void;
     resetTimer: () => void;
     setCustomDuration: (minutes: number) => void;
+    customMinutes: number; // Exposed for UI calculations
 
     // History
     sessionHistory: FocusSession[];
@@ -44,15 +45,35 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [isActive, setIsActive] = useState(false);
     const [customMinutes, setCustomMinutes] = useState(25);
 
-    // UseRef for audio to persist across renders/navigation
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-
     const [sessionHistory, setSessionHistory] = useState<FocusSession[]>([]);
 
-    useEffect(() => {
-        // Initialize audio
-        audioRef.current = new Audio('data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU');
-    }, []);
+    // NO Audio element needed using Web Audio API
+
+    // Play Beep Function
+    const playBeep = () => {
+        try {
+            const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContext) return;
+
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, ctx.currentTime); // 440Hz beep
+
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.5);
+
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5);
+        } catch (e) {
+            console.error('Audio play failed', e);
+        }
+    };
 
     // Load history
     useEffect(() => {
@@ -76,7 +97,9 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
         } else if (timeLeft === 0) {
             setIsActive(false);
-            if (audioRef.current) audioRef.current.play().catch(console.error);
+
+            // Play Beep
+            playBeep();
 
             // Save Session if it was a real focus session
             if (user && (mode === 'focus' || mode === 'custom')) {
@@ -130,6 +153,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             toggleTimer,
             resetTimer,
             setCustomDuration,
+            customMinutes, // Exposed
             sessionHistory
         }}>
             {children}

@@ -44,13 +44,23 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
                     <h1 className="text-xl font-bold tracking-tight">Timetable</h1>
                 </div>
                 {user && (
-                    <button
-                        onClick={logout}
-                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                        title="Sign out"
-                    >
-                        <LogOut size={20} />
-                    </button>
+                    <div className="flex items-center gap-3 bg-muted/50 p-1.5 pr-4 rounded-full border border-white/5">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs shadow-inner">
+                            {user.displayName ? user.displayName[0].toUpperCase() : user.email?.[0].toUpperCase()}
+                        </div>
+                        <div className="flex flex-col items-start hidden sm:flex">
+                            <span className="text-xs font-semibold leading-none">{user.displayName || 'User'}</span>
+                            <span className="text-[10px] text-muted-foreground leading-none">{user.email}</span>
+                        </div>
+                        <div className="w-px h-6 bg-border mx-1" />
+                        <button
+                            onClick={logout}
+                            className="p-1.5 rounded-full hover:bg-red-500/10 hover:text-red-500 text-muted-foreground transition-all"
+                            title="Sign out"
+                        >
+                            <LogOut size={16} />
+                        </button>
+                    </div>
                 )}
             </header>
 

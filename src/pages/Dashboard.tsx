@@ -8,12 +8,15 @@ import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Clock, Sparkles } from 'lucide-react';
 
+import { useAuth } from '../context/AuthContext';
+
 interface DashboardProps {
     onEntryClick: (entry: TimeTableEntry) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onEntryClick }) => {
     const { entries } = useTimetable();
+    const { user } = useAuth();
     const { currentClass, nextClass, now } = useScheduleStatus();
 
     // Get all today's entries
@@ -25,9 +28,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onEntryClick }) => {
 
     // Dynamic Greeting
     const hour = now.getHours();
-    let greeting = 'Good Morning';
-    if (hour >= 12) greeting = 'Good Afternoon';
-    if (hour >= 18) greeting = 'Good Evening';
+    let timeGreeting = 'Good Morning';
+    if (hour >= 12) timeGreeting = 'Good Afternoon';
+    if (hour >= 18) timeGreeting = 'Good Evening';
+
+    const displayName = user?.displayName ? user.displayName.split(' ')[0] : 'Friend';
 
     return (
         <div className="space-y-6 md:space-y-8">
@@ -35,9 +40,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onEntryClick }) => {
             <header className="relative z-10">
                 <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="text-secondary w-5 h-5 animate-pulse" />
-                    <span className="text-sm font-medium text-secondary uppercase tracking-widest">Today's Focus</span>
+                    <span className="text-sm font-medium text-secondary uppercase tracking-widest">{timeGreeting}</span>
                 </div>
-                <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">{greeting}</h2>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
+                    Hi, {displayName}
+                </h2>
                 <p className="text-muted-foreground text-lg">{format(now, 'EEEE, MMMM do')}</p>
             </header>
 

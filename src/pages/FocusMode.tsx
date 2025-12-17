@@ -12,7 +12,8 @@ export const FocusMode: React.FC = () => {
         isActive,
         toggleTimer,
         resetTimer,
-        setCustomDuration
+        setCustomDuration,
+        customMinutes // Get the dynamic custom duration
     } = useFocus();
 
     const formatTime = (seconds: number) => {
@@ -23,7 +24,7 @@ export const FocusMode: React.FC = () => {
 
     // Circular Progress Calculation
     const currentTotalTime = (mode === 'custom')
-        ? (MODES.custom.minutes * 60) // Note: This will jump if custom duration changes, that's okay for now
+        ? (customMinutes * 60) // Use dynamic state, NOT static constant
         : MODES[mode].minutes * 60;
 
     // Fix progress bar jumping for custom: Re-calculate based on initial timeLeft if needed, 
