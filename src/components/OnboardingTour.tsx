@@ -12,7 +12,7 @@ interface Step {
 
 const TOUR_STEPS: Step[] = [
     {
-        targetId: 'welcome-step', // We'll create a dummy target for the initial welcome
+        targetId: 'welcome-step',
         title: 'Welcome to Timetable!',
         description: "Let's take a quick tour to show you around your new productivity hub.",
         position: 'bottom'
@@ -20,26 +20,38 @@ const TOUR_STEPS: Step[] = [
     {
         targetId: 'nav-home',
         title: 'Dashboard',
-        description: 'Your central hub. See upcoming classes, tasks, and quick stats at a glance.',
+        description: 'See upcoming classes and your focus schedule at a glance.',
         position: 'top'
+    },
+    {
+        targetId: 'todo-widget',
+        title: 'To-Do List',
+        description: 'Manage daily tasks right here. Tap + to add, click circle to complete.',
+        position: 'bottom'
     },
     {
         targetId: 'nav-add-btn',
         title: 'Quick Add',
-        description: 'Tap this button anytime to add new Classes or To-Do items.',
+        description: 'Tap this button anytime to add new Classes.',
         position: 'top'
     },
     {
         targetId: 'nav-focus',
         title: 'Focus Mode',
-        description: 'Get in the zone with our built-in Pomodoro timer and visual focus tools.',
+        description: 'Get in the zone with our built-in Pomodoro timer.',
         position: 'top'
     },
     {
         targetId: 'nav-stats',
         title: 'Statistics',
-        description: 'Track your study hours and productivity trends over time.',
+        description: 'Track your study hours and productivity trends.',
         position: 'top'
+    },
+    {
+        targetId: 'user-profile-trigger',
+        title: 'Settings & Data',
+        description: 'Access account settings or securely reset all your data from here.',
+        position: 'bottom'
     }
 ];
 
@@ -50,9 +62,11 @@ export const OnboardingTour: React.FC = () => {
 
     // Initial check
     useEffect(() => {
-        const hasSeen = localStorage.getItem('has_seen_onboarding');
+        // Check if tour has been seen
+        const hasSeen = localStorage.getItem('has_seen_onboarding_v2');
+        // Changed key to force re-show for update
+
         if (!hasSeen) {
-            // Short delay to ensure UI is mounted
             setTimeout(() => setIsVisible(true), 1000);
         }
     }, []);
@@ -100,7 +114,7 @@ export const OnboardingTour: React.FC = () => {
 
     const finishTour = () => {
         setIsVisible(false);
-        localStorage.setItem('has_seen_onboarding', 'true');
+        localStorage.setItem('has_seen_onboarding_v2', 'true');
     };
 
     if (!isVisible || !targetRect) return null;

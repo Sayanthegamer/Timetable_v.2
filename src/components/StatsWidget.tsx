@@ -59,7 +59,7 @@ export const StatsWidget: React.FC = () => {
                 <span>Daily Stats</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
                 {/* Focus Time Card */}
                 <div className="bg-black/5 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5">
                     <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">

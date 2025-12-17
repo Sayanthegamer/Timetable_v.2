@@ -50,6 +50,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange
                     <div className="flex items-center gap-3 bg-muted/50 p-1.5 pr-1.5 rounded-full border border-white/5">
                         {/* User Profile Trigger for Settings */}
                         <div
+                            id="user-profile-trigger"
                             onClick={() => setIsSettingsOpen(true)}
                             className="flex items-center gap-3 cursor-pointer hover:bg-white/5 rounded-full pl-2 pr-2 py-1 transition-colors"
                         >

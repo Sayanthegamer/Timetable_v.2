@@ -76,7 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onEntryClick }) => {
             </section>
 
             {/* PRODUCTIVITY WIDGETS */}
-            <section>
+            <section id="todo-widget">
                 <TodoWidget />
             </section>
 
