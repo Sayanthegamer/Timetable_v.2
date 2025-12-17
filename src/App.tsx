@@ -7,7 +7,6 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { WeekView } from './components/WeekView';
 import { EntryModal } from './components/EntryModal';
-import { LoginPage } from './pages/LoginPage';
 import type { TimeTableEntry } from './types';
 import { FocusMode } from './pages/FocusMode';
 import { useNotifications } from './hooks/useNotifications';
@@ -70,7 +69,9 @@ const AppContent: React.FC = () => {
 
 import { OnboardingTour } from './components/OnboardingTour';
 
-import { LandingPage } from './pages/LandingPage';
+const LandingPage = React.lazy(() => import('./pages/LandingPage').then(module => ({ default: module.LandingPage })));
+const LoginPage = React.lazy(() => import('./pages/LoginPage').then(module => ({ default: module.LoginPage })));
+import { Suspense } from 'react';
 
 // Main App with Auth Check
 const AuthenticatedApp: React.FC = () => {
@@ -99,11 +100,19 @@ const AuthenticatedApp: React.FC = () => {
   }
 
   // Not logged in flow
-  if (showLanding) {
-    return <LandingPage onGetStarted={() => setShowLanding(false)} />;
-  }
-
-  return <LoginPage />;
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    }>
+      {showLanding ? (
+        <LandingPage onGetStarted={() => setShowLanding(false)} />
+      ) : (
+        <LoginPage />
+      )}
+    </Suspense>
+  );
 };
 
 function App() {
