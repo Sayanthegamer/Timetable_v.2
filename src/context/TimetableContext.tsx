@@ -3,15 +3,21 @@ import type { TimeTableEntry, AppSettings } from '../types';
 import { db } from '../lib/firebase';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
+import { getErrorCode, getErrorMessage, logError, retryWithBackoff, isRetriableError } from '../lib/errors';
 
 interface TimetableContextType {
     entries: TimeTableEntry[];
     settings: AppSettings;
     isLoading: boolean;
-    addEntry: (entry: Omit<TimeTableEntry, 'id'>) => void;
-    updateEntry: (entry: TimeTableEntry) => void;
-    deleteEntry: (id: string) => void;
+    isSaving: boolean;
+    lastError: string | null;
+    addEntry: (entry: Omit<TimeTableEntry, 'id'>) => Promise<void>;
+    updateEntry: (entry: TimeTableEntry) => Promise<void>;
+    deleteEntry: (id: string) => Promise<void>;
     updateSettings: (settings: Partial<AppSettings>) => void;
+    clearError: () => void;
+    retryLastOperation: () => void;
 }
 
 const TimetableContext = createContext<TimetableContextType | undefined>(undefined);
@@ -21,8 +27,12 @@ const SETTINGS_KEY = 'timetable_settings';
 
 export const TimetableProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { showSuccess, showError, showInfo } = useToast();
     const [entries, setEntries] = useState<TimeTableEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastError, setLastError] = useState<string | null>(null);
+    const [lastFailedOperation, setLastFailedOperation] = useState<(() => Promise<void>) | null>(null);
 
     const [settings, setSettings] = useState<AppSettings>(() => {
         const saved = localStorage.getItem(SETTINGS_KEY);
@@ -45,8 +55,12 @@ export const TimetableProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     id: doc.id
                 })) as TimeTableEntry[];
                 setEntries(data);
+                setLastError(null);
             } catch (error) {
-                console.error('Error loading entries from Firestore:', error);
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Load Entries');
+                setLastError(errorMessage);
+                showError('Failed to load schedule', errorMessage);
             } finally {
                 setIsLoading(false);
             }
@@ -60,34 +74,117 @@ export const TimetableProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         document.documentElement.classList.remove('light');
     }, [settings]);
 
+    const clearError = () => setLastError(null);
+
+    const retryLastOperation = () => {
+        if (lastFailedOperation) {
+            lastFailedOperation();
+            setLastFailedOperation(null);
+        }
+    };
+
     const addEntry = async (entry: Omit<TimeTableEntry, 'id'>) => {
         if (!user) return;
+        
+        const operation = async () => {
+            setIsSaving(true);
+            showInfo('Saving...', 'Adding new class to your schedule');
+            
+            try {
+                const entryWithUser = { ...entry, userId: user.uid };
+                const docRef = await addDoc(collection(db, ENTRIES_COLLECTION), entryWithUser);
+                const newEntry = { ...entry, id: docRef.id };
+                setEntries(prev => [...prev, newEntry]);
+                showSuccess('Class added', 'Successfully added to your schedule');
+                setLastError(null);
+            } catch (error) {
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Add Entry');
+                setLastError(errorMessage);
+                showError('Failed to save class', errorMessage);
+                
+                // Store operation for retry if it's retriable
+                if (isRetriableError(error)) {
+                    setLastFailedOperation(() => () => addEntry(entry));
+                }
+                throw error;
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        // Use retry logic for Firestore operations
         try {
-            const entryWithUser = { ...entry, userId: user.uid };
-            const docRef = await addDoc(collection(db, ENTRIES_COLLECTION), entryWithUser);
-            const newEntry = { ...entry, id: docRef.id };
-            setEntries(prev => [...prev, newEntry]);
+            await retryWithBackoff(operation, 3, 1000);
         } catch (error) {
-            console.error('Error adding entry:', error);
+            // Error already handled in operation
         }
     };
 
     const updateEntry = async (updatedEntry: TimeTableEntry) => {
+        const operation = async () => {
+            setIsSaving(true);
+            showInfo('Updating...', 'Saving changes to your class');
+            
+            try {
+                const { id, ...data } = updatedEntry;
+                await updateDoc(doc(db, ENTRIES_COLLECTION, id), data);
+                setEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
+                showSuccess('Class updated', 'Changes saved successfully');
+                setLastError(null);
+            } catch (error) {
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Update Entry');
+                setLastError(errorMessage);
+                showError('Failed to update class', errorMessage);
+                
+                // Store operation for retry if it's retriable
+                if (isRetriableError(error)) {
+                    setLastFailedOperation(() => () => updateEntry(updatedEntry));
+                }
+                throw error;
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
         try {
-            const { id, ...data } = updatedEntry;
-            await updateDoc(doc(db, ENTRIES_COLLECTION, id), data);
-            setEntries(prev => prev.map(e => e.id === updatedEntry.id ? updatedEntry : e));
+            await retryWithBackoff(operation, 3, 1000);
         } catch (error) {
-            console.error('Error updating entry:', error);
+            // Error already handled in operation
         }
     };
 
     const deleteEntry = async (id: string) => {
+        const operation = async () => {
+            setIsSaving(true);
+            showInfo('Deleting...', 'Removing class from your schedule');
+            
+            try {
+                await deleteDoc(doc(db, ENTRIES_COLLECTION, id));
+                setEntries(prev => prev.filter(e => e.id !== id));
+                showSuccess('Class deleted', 'Successfully removed from your schedule');
+                setLastError(null);
+            } catch (error) {
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Delete Entry');
+                setLastError(errorMessage);
+                showError('Failed to delete class', errorMessage);
+                
+                // Store operation for retry if it's retriable
+                if (isRetriableError(error)) {
+                    setLastFailedOperation(() => () => deleteEntry(id));
+                }
+                throw error;
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
         try {
-            await deleteDoc(doc(db, ENTRIES_COLLECTION, id));
-            setEntries(prev => prev.filter(e => e.id !== id));
+            await retryWithBackoff(operation, 3, 1000);
         } catch (error) {
-            console.error('Error deleting entry:', error);
+            // Error already handled in operation
         }
     };
 
@@ -96,7 +193,19 @@ export const TimetableProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
 
     return (
-        <TimetableContext.Provider value={{ entries, settings, isLoading, addEntry, updateEntry, deleteEntry, updateSettings }}>
+        <TimetableContext.Provider value={{ 
+            entries, 
+            settings, 
+            isLoading, 
+            isSaving,
+            lastError,
+            addEntry, 
+            updateEntry, 
+            deleteEntry, 
+            updateSettings,
+            clearError,
+            retryLastOperation
+        }}>
             {children}
         </TimetableContext.Provider>
     );

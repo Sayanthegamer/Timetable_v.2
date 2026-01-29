@@ -3,10 +3,12 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { TimetableProvider, useTimetable } from './context/TimetableContext';
 import { FocusProvider } from './context/FocusContext';
 import { TodoProvider } from './context/TodoContext';
+import { ToastProvider } from './context/ToastContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { WeekView } from './components/WeekView';
 import { EntryModal } from './components/EntryModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import type { TimeTableEntry } from './types';
 import { FocusMode } from './pages/FocusMode';
 import { useNotifications } from './hooks/useNotifications';
@@ -117,9 +119,13 @@ const AuthenticatedApp: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <AuthenticatedApp />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ToastProvider>
+          <AuthenticatedApp />
+        </ToastProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

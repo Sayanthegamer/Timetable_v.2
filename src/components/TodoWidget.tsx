@@ -1,17 +1,23 @@
 import React, { useState } from 'react';
 import { useTodo } from '../context/TodoContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Trash2, Sparkles } from 'lucide-react';
+import { Check, Plus, Trash2, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
+import { RetryOperation } from './ErrorBoundary';
 
 export const TodoWidget: React.FC = () => {
-    const { todos, addTodo, toggleTodo, deleteTodo } = useTodo();
+    const { todos, addTodo, toggleTodo, deleteTodo, isSaving, lastError, retryLastOperation } = useTodo();
     const [newItem, setNewItem] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (newItem.trim()) {
-            addTodo(newItem.trim());
-            setNewItem('');
+            try {
+                await addTodo(newItem.trim());
+                setNewItem('');
+            } catch (error) {
+                // Error is handled by the context
+                console.error('Failed to add todo:', error);
+            }
         }
     };
 
@@ -56,19 +62,47 @@ export const TodoWidget: React.FC = () => {
                     value={newItem}
                     onChange={(e) => setNewItem(e.target.value)}
                     placeholder="Add a new task..."
-                    className="w-full bg-black/5 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-xl px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-smooth font-medium"
+                    disabled={isSaving}
+                    className="w-full bg-black/5 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-xl px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-smooth font-medium disabled:opacity-50"
                 />
                 <button
                     type="submit"
-                    disabled={!newItem.trim()}
-                    className={`absolute right-2 top-2 p-2 rounded-lg transition-smooth ${newItem.trim()
+                    disabled={!newItem.trim() || isSaving}
+                    className={`absolute right-2 top-2 p-2 rounded-lg transition-smooth ${newItem.trim() && !isSaving
                         ? 'bg-gradient-to-br from-primary to-purple-600 text-white hover:shadow-lg hover:shadow-primary/30 hover:scale-105'
                         : 'bg-muted text-muted-foreground cursor-not-allowed'
                         }`}
                 >
-                    <Plus size={18} />
+                    {isSaving ? (
+                        <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        >
+                            <RefreshCw size={18} />
+                        </motion.div>
+                    ) : (
+                        <Plus size={18} />
+                    )}
                 </button>
             </form>
+
+            {/* Error State */}
+            {lastError && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                            <AlertCircle size={16} />
+                            <span className="text-sm font-medium">Error</span>
+                        </div>
+                        <RetryOperation isRetrying={isSaving} onRetry={retryLastOperation} />
+                    </div>
+                    <p className="text-sm text-red-600 dark:text-red-300 mt-1">{lastError}</p>
+                </motion.div>
+            )}
 
             {/* Todo List */}
             <div className="space-y-2 max-h-[280px] overflow-y-auto pr-2 custom-scrollbar">
