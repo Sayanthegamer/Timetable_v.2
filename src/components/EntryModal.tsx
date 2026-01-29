@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { TimeTableEntry, DayOfWeek } from '../types';
 import { X, Trash2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTimetable } from '../context/TimetableContext';
 
 interface EntryModalProps {
     isOpen: boolean;
@@ -16,6 +17,7 @@ interface EntryModalProps {
 const DAYS: DayOfWeek[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 export const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave, onDelete, initialData, defaultDay }) => {
+    const { isSaving } = useTimetable();
     const [formData, setFormData] = useState<Partial<TimeTableEntry>>({
         days: defaultDay ? [defaultDay] : ['Monday'],
         startTime: '09:00',
@@ -99,7 +101,7 @@ export const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave,
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         // Validate all fields
@@ -115,8 +117,13 @@ export const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave,
         const hasErrors = Object.values(newErrors).some(error => error);
         if (hasErrors) return;
 
-        onSave(formData as TimeTableEntry);
-        onClose();
+        try {
+            await onSave(formData as TimeTableEntry);
+            onClose();
+        } catch (error) {
+            // Error is handled by the context
+            console.error('Save failed:', error);
+        }
     };
 
     const hasError = (name: string) => touched[name] && errors[name];
@@ -312,19 +319,39 @@ export const EntryModal: React.FC<EntryModalProps> = ({ isOpen, onClose, onSave,
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         type="button"
-                                        onClick={() => { onDelete(initialData.id!); onClose(); }}
-                                        className="p-4 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 transition-smooth"
+                                        disabled={isSaving}
+                                        onClick={async () => { 
+                                            try {
+                                                await onDelete(initialData.id!); 
+                                                onClose();
+                                            } catch (error) {
+                                                console.error('Delete failed:', error);
+                                            }
+                                        }}
+                                        className={`p-4 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 transition-smooth ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        <Trash2 size={20} />
+                                        {isSaving ? (
+                                            <div className="w-5 h-5 border-2 border-destructive border-t-transparent rounded-full animate-spin" />
+                                        ) : (
+                                            <Trash2 size={20} />
+                                        )}
                                     </motion.button>
                                 )}
                                 <motion.button
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     type="submit"
-                                    className="flex-1 p-4 rounded-xl bg-gradient-to-r from-primary to-purple-600 text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-smooth"
+                                    disabled={isSaving}
+                                    className={`flex-1 p-4 rounded-xl bg-gradient-to-r from-primary to-purple-600 text-primary-foreground font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-smooth ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    {initialData ? 'Save Changes' : 'Create Class'}
+                                    {isSaving ? (
+                                        <div className="flex items-center justify-center gap-2">
+                                            <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
+                                            {initialData ? 'Saving...' : 'Creating...'}
+                                        </div>
+                                    ) : (
+                                        initialData ? 'Save Changes' : 'Create Class'
+                                    )}
                                 </motion.button>
                             </div>
                         </form>

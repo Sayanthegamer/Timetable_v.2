@@ -3,6 +3,8 @@ import type { FocusSession } from '../types';
 import { db } from '../lib/firebase';
 import { collection, addDoc, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
+import { getErrorMessage, logError, retryWithBackoff, isRetriableError } from '../lib/errors';
 
 export type TimerMode = 'focus' | 'short' | 'long' | 'custom';
 
@@ -29,6 +31,10 @@ interface FocusContextType {
 
     // History
     sessionHistory: FocusSession[];
+    isSaving: boolean;
+    lastError: string | null;
+    clearError: () => void;
+    retryLastOperation: () => void;
 }
 
 const FocusContext = createContext<FocusContextType | undefined>(undefined);
@@ -37,6 +43,7 @@ const HISTORY_COLLECTION = 'focus_history';
 
 export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user } = useAuth();
+    const { showSuccess, showError, showInfo } = useToast();
     const [isFocusMode, setIsFocusMode] = useState(false);
 
     // Timer State in Context (Global Persistence)
@@ -46,6 +53,9 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const [customMinutes, setCustomMinutes] = useState(25);
 
     const [sessionHistory, setSessionHistory] = useState<FocusSession[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
+    const [lastError, setLastError] = useState<string | null>(null);
+    const [lastFailedOperation, setLastFailedOperation] = useState<(() => Promise<void>) | null>(null);
 
     // NO Audio element needed using Web Audio API
 
@@ -83,12 +93,59 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 const q = query(collection(db, HISTORY_COLLECTION), where('userId', '==', user.uid), orderBy('startTime', 'desc'));
                 const snapshot = await getDocs(q);
                 setSessionHistory(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FocusSession[]);
+                setLastError(null);
             } catch (error) {
-                console.error('Error loading history:', error);
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Load Focus History');
+                setLastError(errorMessage);
+                showError('Failed to load focus history', errorMessage);
             }
         };
         loadHistory();
     }, [user]);
+
+    const clearError = () => setLastError(null);
+
+    const retryLastOperation = () => {
+        if (lastFailedOperation) {
+            lastFailedOperation();
+            setLastFailedOperation(null);
+        }
+    };
+
+    // Save session with error handling and retry logic
+    const saveSession = async (sessionData: Omit<FocusSession, 'id'> & { userId: string }) => {
+        const operation = async () => {
+            setIsSaving(true);
+            showInfo('Saving session...', 'Recording your focus time');
+            
+            try {
+                const docRef = await addDoc(collection(db, HISTORY_COLLECTION), sessionData);
+                setSessionHistory(prev => [{ ...sessionData, id: docRef.id }, ...prev]);
+                showSuccess('Session saved', 'Your focus session has been recorded');
+                setLastError(null);
+            } catch (error) {
+                const errorMessage = getErrorMessage(error);
+                logError(error, 'Save Focus Session');
+                setLastError(errorMessage);
+                showError('Failed to save session', errorMessage);
+                
+                // Store operation for retry if it's retriable
+                if (isRetriableError(error)) {
+                    setLastFailedOperation(() => () => saveSession(sessionData));
+                }
+                throw error;
+            } finally {
+                setIsSaving(false);
+            }
+        };
+
+        try {
+            await retryWithBackoff(operation, 3, 1000);
+        } catch (error) {
+            // Error already handled in operation
+        }
+    };
 
     // Timer Logic (Moved from FocusMode.tsx)
     useEffect(() => {
@@ -110,9 +167,7 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     completed: true,
                     userId: user.uid
                 };
-                addDoc(collection(db, HISTORY_COLLECTION), newSession)
-                    .then(docRef => setSessionHistory(prev => [{ ...newSession, id: docRef.id }, ...prev]))
-                    .catch(console.error);
+                saveSession(newSession);
             }
         }
         return () => clearInterval(interval);
@@ -155,7 +210,11 @@ export const FocusProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             resetTimer,
             setCustomDuration,
             customMinutes, // Exposed
-            sessionHistory
+            sessionHistory,
+            isSaving,
+            lastError,
+            clearError,
+            retryLastOperation
         }}>
             {children}
         </FocusContext.Provider>
